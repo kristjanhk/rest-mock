@@ -1,0 +1,4 @@
+syntax: glob
+/output/
+/.vertx/
+/src/main/resources/config.json

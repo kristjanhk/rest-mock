@@ -1,0 +1,30 @@
+plugins {
+    id "com.github.johnrengelman.shadow" version "2.0.3"
+}
+
+group 'eu.kyngas'
+
+apply plugin: 'application'
+apply plugin: 'java'
+apply plugin: 'idea'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+    compile group: 'io.vertx', name: 'vertx-core', version: '3.5.1'
+    compile group: 'io.vertx', name: 'vertx-web', version: '3.5.1'
+    compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.16.20'
+}
+
+mainClassName = 'rest.RestVerticle'
+
+shadowJar {
+    baseName = 'rest'
+    classifier = 'mock'
+    destinationDir = file("$rootDir/output")
+}
