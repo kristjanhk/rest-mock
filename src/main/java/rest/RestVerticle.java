@@ -39,6 +39,11 @@ public class RestVerticle extends AbstractVerticle {
   private static final Path DIR = Paths.get(System.getProperty("user.dir"));
   private static final Pattern PATTERN =
       Pattern.compile("(https?://)?(?<host>.*(\\.(.*){2,4})?):(?<port>\\d{3,5})(?<prefix>(/.*)*)");
+  private static final String URL = "url";
+  private static final String HTTP_CODE = "http_code";
+  private static final String HTTP_METHOD = "http_method";
+  private static final String RESPONSE = "response";
+
   private final WatchService watchService = FileSystems.getDefault().newWatchService();
   private final String host;
   private final int port;
@@ -157,7 +162,9 @@ public class RestVerticle extends AbstractVerticle {
     }
     if (server != null) {
       server.close(future);
+      return;
     }
+    future.complete();
   }
 
   private void addMock(String fileName, boolean reload) {
@@ -171,31 +178,31 @@ public class RestVerticle extends AbstractVerticle {
       log.warn("File is invalid or empty, ignoring. File: {}", absolutePath.toFile().getName());
       return;
     }
-    if (isInvalid(json, "url", String.class)) {
-      log.warn("File is missing 'url', ignoring. File: {}", absolutePath.toFile().getName());
+    if (isInvalid(json, URL, String.class)) {
+      log.warn("File is missing '{}', ignoring. File: {}", URL, absolutePath.toFile().getName());
       return;
     }
-    if (isInvalid(json, "http_status", Integer.class)) {
-      log.warn("File is missing 'http_status', using '200'. File: {}", absolutePath.toFile().getName());
+    if (isInvalid(json, HTTP_CODE, Integer.class)) {
+      log.warn("File is missing '{}', using '200'. File: {}", HTTP_CODE, absolutePath.toFile().getName());
     }
-    if (isInvalid(json, "http_method", String.class)) {
-      log.warn("File is missing 'http_method', using 'GET'. File: {}", absolutePath.toFile().getName());
+    if (isInvalid(json, HTTP_METHOD, String.class)) {
+      log.warn("File is missing '{}', using 'GET'. File: {}", HTTP_METHOD, absolutePath.toFile().getName());
     }
-    if (isInvalid(json, "response", JsonObject.class)) {
-      log.warn("File is missing 'response', using '#empty#'. File: {}", absolutePath.toFile().getName());
+    if (isInvalid(json, RESPONSE, JsonObject.class)) {
+      log.warn("File is missing '{}', using '#empty#'. File: {}", RESPONSE, absolutePath.toFile().getName());
     }
 
-    Mock mock = new Mock(json.getString("url"),
-                         json.getInteger("http_status", 200),
-                         json.getString("http_method", "GET"),
-                         json.getJsonObject("response", new JsonObject()),
+    Mock mock = new Mock(json.getString(URL),
+                         json.getInteger(HTTP_CODE, 200),
+                         json.getString(HTTP_METHOD, "GET"),
+                         json.getJsonObject(RESPONSE, new JsonObject()),
                          absolutePath);
     Route route = createRoute(mock);
     if (route != null) {
       mocksByFileName.put(absolutePath.toFile().getName(), mock);
       routesByUrl.put(mock.getUrl(), route);
       if (!reload) {
-        log.info("Loading mock from file: {}, url: {}.", absolutePath.toFile().getName(), mock.getUrl());
+        log.info("Loading mock from file: {}, url: {}", absolutePath.toFile().getName(), mock.getUrl());
       }
     }
   }
@@ -219,26 +226,24 @@ public class RestVerticle extends AbstractVerticle {
       log.error("Mock with url {} contains illegal http_method.", mock.getUrl());
       return null;
     }
-    return router.routeWithRegex(method, mock.getPrefixUrl(prefix)).handler(ctx -> {
+    return router.routeWithRegex(method, mock.getPrefixUrl(prefix) + ".*").useNormalisedPath(true).handler(ctx -> {
       log.info(">>>>>>>>>>");
-
       log.info("Received request for url: {}", mock.getFullUrl(host, port, prefix));
       log.info("Using file: {}", mock.getAbsolutePath());
       ctx.request().headers().forEach(e -> log.info("Request header: {}: {}", e.getKey(), e.getValue()));
       ctx.request().params().forEach(e -> log.info("Request param: {}: {}", e.getKey(), e.getValue()));
       ctx.request().formAttributes().forEach(e -> log.info("Request form attribute: {}: {}", e.getKey(), e.getValue()));
       JsonObject json = bufferToJsonObject(ctx.getBody());
-      String body = json != null ? json.encodePrettily() : ctx.getBodyAsString().trim();
+      String body = json != null ? "\n" + json.encodePrettily() : ctx.getBodyAsString().trim();
       log.info("Request body: {}", body.isEmpty() ? "#empty#" : body);
 
       log.info("<<<<<<<<<<");
-
       ctx.response()
          .setStatusCode(mock.getHttpCode())
          .putHeader("Content-Type", "application/json");
       log.info("Response http code: {}", ctx.response().getStatusCode());
       ctx.response().headers().forEach(e -> log.info("Response header: {}: {}", e.getKey(), e.getValue()));
-      log.info("Response json: {}", mock.getResponse().encodePrettily());
+      log.info("Response json: \n{}", mock.getResponse().encodePrettily());
       ctx.response().end(mock.getResponse().encodePrettily());
     });
   }

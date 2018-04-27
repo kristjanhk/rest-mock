@@ -28,3 +28,9 @@ shadowJar {
     classifier = 'mock'
     destinationDir = file("$rootDir/output")
 }
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.5'
+    //noinspection UnnecessaryQualifiedReference
+    distributionType = Wrapper.DistributionType.ALL
+}
