@@ -1,5 +1,6 @@
 package rest;
 
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.nio.file.Path;
 import lombok.AllArgsConstructor;
@@ -14,7 +15,8 @@ public class Mock {
   private String url;
   private int httpCode;
   private String httpMethod;
-  private JsonObject response;
+  private JsonObject responseJson;
+  private JsonArray responseArray;
   private Path absolutePath;
 
   public String getUrl() {

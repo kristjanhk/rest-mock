@@ -7,6 +7,7 @@ import io.vertx.core.VertxOptions;
 import io.vertx.core.dns.AddressResolverOptions;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
@@ -54,7 +55,7 @@ public class RestVerticle extends AbstractVerticle {
   private Map<String, Mock> mocksByFileName = new ConcurrentHashMap<>();
   private Map<String, Route> routesByUrl = new ConcurrentHashMap<>();
 
-  public RestVerticle(String host, String port, String prefix) throws IOException {
+  private RestVerticle(String host, String port, String prefix) throws IOException {
     this.host = host;
     this.port = Integer.parseInt(port);
     this.prefix = prefix;
@@ -87,7 +88,7 @@ public class RestVerticle extends AbstractVerticle {
     }
     System.setProperty("vertx.logger-delegate-factory-class-name", "io.vertx.core.logging.SLF4JLogDelegateFactory");
 
-    JsonObject config = loadJsonObject("/config.json");
+    JsonObject config = loadConfig();
     String dnsResolver1 = config.getString("dns_resolver_1", "1.1.1.1");
     String dnsResolver2 = config.getString("dns_resolver_2", "8.8.8.8");
     AddressResolverOptions resolverOpts = new AddressResolverOptions().addServer(dnsResolver1).addServer(dnsResolver2);
@@ -188,14 +189,19 @@ public class RestVerticle extends AbstractVerticle {
     if (isInvalid(json, HTTP_METHOD, String.class)) {
       log.warn("File is missing '{}', using 'GET'. File: {}", HTTP_METHOD, absolutePath.toFile().getName());
     }
-    if (isInvalid(json, RESPONSE, JsonObject.class)) {
+    if (isInvalid(json, RESPONSE, JsonObject.class) && isInvalid(json, RESPONSE, JsonArray.class)) {
       log.warn("File is missing '{}', using '#empty#'. File: {}", RESPONSE, absolutePath.toFile().getName());
     }
 
     Mock mock = new Mock(json.getString(URL),
                          json.getInteger(HTTP_CODE, 200),
                          json.getString(HTTP_METHOD, "GET"),
-                         json.getJsonObject(RESPONSE, new JsonObject()),
+                         json.getValue(RESPONSE) instanceof JsonObject
+                             ? json.getJsonObject(RESPONSE, new JsonObject())
+                             : null,
+                         json.getValue(RESPONSE) instanceof JsonArray
+                             ? json.getJsonArray(RESPONSE, new JsonArray())
+                             : null,
                          absolutePath);
     Route route = createRoute(mock);
     if (route != null) {
@@ -243,8 +249,13 @@ public class RestVerticle extends AbstractVerticle {
          .putHeader("Content-Type", "application/json");
       log.info("Response http code: {}", ctx.response().getStatusCode());
       ctx.response().headers().forEach(e -> log.info("Response header: {}: {}", e.getKey(), e.getValue()));
-      log.info("Response json: \n{}", mock.getResponse().encodePrettily());
-      ctx.response().end(mock.getResponse().encodePrettily());
+      if (mock.getResponseJson() != null) {
+        log.info("Response json: \n{}", mock.getResponseJson().encodePrettily());
+        ctx.response().end(mock.getResponseJson().encodePrettily());
+      } else {
+        log.info("Response json array: \n{}", mock.getResponseArray().encodePrettily());
+        ctx.response().end(mock.getResponseArray().encodePrettily());
+      }
     });
   }
 

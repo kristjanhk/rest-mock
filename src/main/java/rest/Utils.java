@@ -18,13 +18,13 @@ import lombok.extern.slf4j.Slf4j;
  * @author <a href="https://github.com/kristjanhk">Kristjan Hendrik Küngas</a>
  */
 @Slf4j
-public class Utils {
+class Utils {
 
-  public static JsonObject loadJsonObject(String fileName) {
+  static JsonObject loadConfig() {
     try {
-      return new JsonObject(readToString(Utils.class.getResourceAsStream(fileName)));
+      return new JsonObject(readToString(Utils.class.getResourceAsStream("/config.json")));
     } catch (IOException e) {
-      log.error("Failed to load config file: {}", fileName);
+      log.error("Failed to load config file: {}", "/config.json");
     }
     return new JsonObject();
   }
@@ -38,7 +38,7 @@ public class Utils {
     }
   }
 
-  public static String getJsonStructure() {
+  static String getJsonStructure() {
     return new JsonObject()
         .put("url", "/example/url/.*/using/regex")
         .put("http_code", 200)
@@ -50,7 +50,7 @@ public class Utils {
         .encodePrettily();
   }
 
-  public static JsonObject bufferToJsonObject(Buffer buffer) {
+  static JsonObject bufferToJsonObject(Buffer buffer) {
     try {
       return buffer.toJsonObject();
     } catch (Exception e) {
@@ -58,21 +58,12 @@ public class Utils {
     }
   }
 
-  public static boolean isJsonObject(String json) {
-    try {
-      new JsonObject(json);
-      return true;
-    } catch (Exception e) {
-      return false;
-    }
-  }
-
-  public static boolean isInvalid(JsonObject json, String key, Class type) {
+  static boolean isInvalid(JsonObject json, String key, Class type) {
     Object obj = json.getValue(key);
-    return obj == null || !type.isInstance(obj) && !isJsonObject(obj.toString());
+    return obj == null || !type.isInstance(obj);
   }
 
-  public static void getInitialFiles(Path dir, Consumer<Path> consumer) throws IOException {
+  static void getInitialFiles(Path dir, Consumer<Path> consumer) throws IOException {
     Files.list(dir)
          .filter(path -> !path.toFile().isDirectory())
          .filter(path -> path.toString().endsWith(".json"))
