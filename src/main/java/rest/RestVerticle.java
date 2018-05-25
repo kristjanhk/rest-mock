@@ -232,7 +232,7 @@ public class RestVerticle extends AbstractVerticle {
       log.error("Mock with url {} contains illegal http_method.", mock.getUrl());
       return null;
     }
-    return router.routeWithRegex(method, mock.getPrefixUrl(prefix) + ".*").useNormalisedPath(true).handler(ctx -> {
+    return router.routeWithRegex(method, mock.getPrefixUrl(prefix)).useNormalisedPath(true).handler(ctx -> {
       log.info(">>>>>>>>>>");
       log.info("Received request for url: {}", mock.getFullUrl(host, port, prefix));
       log.info("Using file: {}", mock.getAbsolutePath());
