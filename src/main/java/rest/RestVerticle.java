@@ -7,6 +7,7 @@ import io.vertx.core.VertxOptions;
 import io.vertx.core.dns.AddressResolverOptions;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Route;
@@ -37,7 +38,7 @@ import static rest.Utils.*;
 @Slf4j
 public class RestVerticle extends AbstractVerticle {
   private static final long POLL_TIME = TimeUnit.SECONDS.toMillis(1);
-  private static final Path DIR = Paths.get(System.getProperty("user.dir"));
+  public static final Path DIR = Paths.get(System.getProperty("user.dir"));
   private static final Pattern PATTERN =
       Pattern.compile("(https?://)?(?<host>.*(\\.(.*){2,4})?):(?<port>\\d{3,5})(?<prefix>(/.*)*)");
   private static final String URL = "url";
@@ -52,8 +53,11 @@ public class RestVerticle extends AbstractVerticle {
   private final Router router;
 
   private HttpServer server;
-  private Map<String, Mock> mocksByFileName = new ConcurrentHashMap<>();
+  private Map<String, AbstractMock> mocksByFileName = new ConcurrentHashMap<>();
   private Map<String, Route> routesByUrl = new ConcurrentHashMap<>();
+
+  // TODO: 11.06.2018 add request validation
+  // TODO: 11.06.2018 add url validation
 
   private RestVerticle(String host, String port, String prefix) throws IOException {
     this.host = host;
@@ -189,20 +193,18 @@ public class RestVerticle extends AbstractVerticle {
     if (isInvalid(json, HTTP_METHOD, String.class)) {
       log.warn("File is missing '{}', using 'GET'. File: {}", HTTP_METHOD, absolutePath.toFile().getName());
     }
-    if (isInvalid(json, RESPONSE, JsonObject.class) && isInvalid(json, RESPONSE, JsonArray.class)) {
-      log.warn("File is missing '{}', using '#empty#'. File: {}", RESPONSE, absolutePath.toFile().getName());
+    if (isInvalid(json, RESPONSE, JsonObject.class)
+        && isInvalid(json, RESPONSE, JsonArray.class)
+        && isInvalid(json, RESPONSE, String.class)) {
+      log.warn("File is missing '{}', ignoring'. File: {}", RESPONSE, absolutePath.toFile().getName());
+      return;
     }
 
-    Mock mock = new Mock(json.getString(URL),
-                         json.getInteger(HTTP_CODE, 200),
-                         json.getString(HTTP_METHOD, "GET"),
-                         json.getValue(RESPONSE) instanceof JsonObject
-                             ? json.getJsonObject(RESPONSE, new JsonObject())
-                             : null,
-                         json.getValue(RESPONSE) instanceof JsonArray
-                             ? json.getJsonArray(RESPONSE, new JsonArray())
-                             : null,
-                         absolutePath);
+    AbstractMock mock = AbstractMock.create(json.getString(URL),
+                                            json.getInteger(HTTP_CODE, 200),
+                                            json.getString(HTTP_METHOD, "GET"),
+                                            json.getValue(RESPONSE),
+                                            absolutePath);
     Route route = createRoute(mock);
     if (route != null) {
       mocksByFileName.put(absolutePath.toFile().getName(), mock);
@@ -214,7 +216,7 @@ public class RestVerticle extends AbstractVerticle {
   }
 
   private void removeMock(String fileName, boolean reload) {
-    Mock mock = mocksByFileName.remove(fileName);
+    AbstractMock mock = mocksByFileName.remove(fileName);
     if (mock == null) {
       return;
     }
@@ -224,7 +226,7 @@ public class RestVerticle extends AbstractVerticle {
     }
   }
 
-  private Route createRoute(Mock mock) {
+  private Route createRoute(AbstractMock mock) {
     HttpMethod method;
     try {
       method = HttpMethod.valueOf(mock.getHttpMethod().toUpperCase());
@@ -241,21 +243,12 @@ public class RestVerticle extends AbstractVerticle {
       ctx.request().formAttributes().forEach(e -> log.info("Request form attribute: {}: {}", e.getKey(), e.getValue()));
       JsonObject json = bufferToJsonObject(ctx.getBody());
       String body = json != null ? "\n" + json.encodePrettily() : ctx.getBodyAsString().trim();
-      log.info("Request body: {}", body.isEmpty() ? "#empty#" : body);
+      log.info("Request body: \n{}", body.isEmpty() ? "#empty#" : body);
 
       log.info("<<<<<<<<<<");
-      ctx.response()
-         .setStatusCode(mock.getHttpCode())
-         .putHeader("Content-Type", "application/json");
-      log.info("Response http code: {}", ctx.response().getStatusCode());
-      ctx.response().headers().forEach(e -> log.info("Response header: {}: {}", e.getKey(), e.getValue()));
-      if (mock.getResponseJson() != null) {
-        log.info("Response json: \n{}", mock.getResponseJson().encodePrettily());
-        ctx.response().end(mock.getResponseJson().encodePrettily());
-      } else {
-        log.info("Response json array: \n{}", mock.getResponseArray().encodePrettily());
-        ctx.response().end(mock.getResponseArray().encodePrettily());
-      }
+      HttpServerResponse res = ctx.response().setStatusCode(mock.getHttpCode());
+      log.info("Response http code: {}", res.getStatusCode());
+      mock.complete(res);
     });
   }
 

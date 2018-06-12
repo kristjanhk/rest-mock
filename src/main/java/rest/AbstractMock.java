@@ -1,5 +1,6 @@
 package rest;
 
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.nio.file.Path;
@@ -11,12 +12,10 @@ import lombok.Data;
  */
 @Data
 @AllArgsConstructor
-public class Mock {
+public abstract class AbstractMock {
   private String url;
   private int httpCode;
   private String httpMethod;
-  private JsonObject responseJson;
-  private JsonArray responseArray;
   private Path absolutePath;
 
   public String getUrl() {
@@ -38,5 +37,20 @@ public class Mock {
     urlRegex = urlRegex.charAt(0) != '/' ? "/" + urlRegex : urlRegex;
     urlRegex = urlRegex.charAt(urlRegex.length() - 1) == '/' ? urlRegex.substring(0, urlRegex.length() - 1) : urlRegex;
     return urlRegex;
+  }
+
+  public abstract void complete(HttpServerResponse res);
+
+  public static AbstractMock create(String url, int httpCode, String httpMethod, Object response, Path absolutePath) {
+    if (response instanceof JsonObject) {
+      return new JsonObjectMock(url, httpCode, httpMethod, (JsonObject) response, absolutePath);
+    }
+    if (response instanceof JsonArray) {
+      return new JsonArrayMock(url, httpCode, httpMethod, (JsonArray) response, absolutePath);
+    }
+    if (response instanceof String) {
+      return new FileMock(url, httpCode, httpMethod, (String) response, absolutePath);
+    }
+    return new EmptyMock(url, httpCode, httpMethod, absolutePath);
   }
 }

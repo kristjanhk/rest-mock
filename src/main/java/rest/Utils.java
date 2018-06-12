@@ -1,7 +1,6 @@
 package rest;
 
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -43,10 +42,7 @@ class Utils {
         .put("url", "/example/url/.*/using/regex")
         .put("http_code", 200)
         .put("http_method", "GET")
-        .put("response", new JsonObject()
-            .put("key1", "value1")
-            .put("key2", "value2")
-            .put("key3", new JsonArray().add("value3").add("value4")))
+        .put("response", "Valid Json, JsonArray or file name")
         .encodePrettily();
   }
 
