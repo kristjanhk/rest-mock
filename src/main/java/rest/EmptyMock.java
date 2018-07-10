@@ -2,6 +2,7 @@ package rest;
 
 import io.vertx.core.http.HttpServerResponse;
 import java.nio.file.Path;
+import java.util.HashMap;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -11,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 public class EmptyMock extends AbstractMock {
 
   EmptyMock(String url, int httpCode, String httpMethod, Path absolutePath) {
-    super(url, httpCode, httpMethod, absolutePath);
+    super(url, httpCode, httpMethod, absolutePath, new HashMap<>());
   }
 
   @Override

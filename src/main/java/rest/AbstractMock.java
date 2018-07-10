@@ -4,6 +4,7 @@ import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.nio.file.Path;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -17,6 +18,7 @@ public abstract class AbstractMock {
   private int httpCode;
   private String httpMethod;
   private Path absolutePath;
+  private Map<String, Object> headers;
 
   public String getUrl() {
     return normalizeUrl(url);
@@ -39,17 +41,22 @@ public abstract class AbstractMock {
     return urlRegex;
   }
 
-  public abstract void complete(HttpServerResponse res);
+  public void complete(HttpServerResponse res) {
+    for (Map.Entry<String, Object> header : headers.entrySet())
+    {
+      res.putHeader(header.getKey(),  (String) header.getValue());
+    }
+  }
 
-  public static AbstractMock create(String url, int httpCode, String httpMethod, Object response, Path absolutePath) {
+  public static AbstractMock create(String url, int httpCode, String httpMethod, Object response, Path absolutePath,Map<String, Object> headers) {
     if (response instanceof JsonObject) {
-      return new JsonObjectMock(url, httpCode, httpMethod, (JsonObject) response, absolutePath);
+      return new JsonObjectMock(url, httpCode, httpMethod, (JsonObject) response, absolutePath, headers);
     }
     if (response instanceof JsonArray) {
-      return new JsonArrayMock(url, httpCode, httpMethod, (JsonArray) response, absolutePath);
+      return new JsonArrayMock(url, httpCode, httpMethod, (JsonArray) response, absolutePath, headers);
     }
     if (response instanceof String) {
-      return new FileMock(url, httpCode, httpMethod, (String) response, absolutePath);
+      return new FileMock(url, httpCode, httpMethod, (String) response, absolutePath, headers);
     }
     return new EmptyMock(url, httpCode, httpMethod, absolutePath);
   }

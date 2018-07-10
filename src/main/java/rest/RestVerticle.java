@@ -1,5 +1,6 @@
 package rest;
 
+import static rest.Utils.*;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
@@ -22,6 +23,7 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,7 +32,6 @@ import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
-import static rest.Utils.*;
 
 /**
  * @author <a href="https://github.com/kristjanhk">Kristjan Hendrik Küngas</a>
@@ -45,6 +46,7 @@ public class RestVerticle extends AbstractVerticle {
   private static final String HTTP_CODE = "http_code";
   private static final String HTTP_METHOD = "http_method";
   private static final String RESPONSE = "response";
+  private static final String HEADERS = "headers";
 
   private final WatchService watchService = FileSystems.getDefault().newWatchService();
   private final String host;
@@ -96,6 +98,7 @@ public class RestVerticle extends AbstractVerticle {
     String dnsResolver1 = config.getString("dns_resolver_1", "1.1.1.1");
     String dnsResolver2 = config.getString("dns_resolver_2", "8.8.8.8");
     AddressResolverOptions resolverOpts = new AddressResolverOptions().addServer(dnsResolver1).addServer(dnsResolver2);
+    resolverOpts.setSearchDomains(Collections.emptyList());
     VertxOptions opts = new VertxOptions().setAddressResolverOptions(resolverOpts);
 
     Vertx.vertx(opts).deployVerticle(new RestVerticle(host, port, prefix), ar -> {
@@ -200,11 +203,20 @@ public class RestVerticle extends AbstractVerticle {
       return;
     }
 
+    Map<String, Object> headers = new HashMap<>();
+
+    if (!isInvalid(json, HEADERS, JsonObject.class)) {
+      JsonObject jsonHeaders = (JsonObject) json.getValue(HEADERS);
+      headers = jsonHeaders.getMap();
+      log.info("Additional headers for file {}: {}.", absolutePath.toFile().getName(), jsonHeaders.encodePrettily());
+    }
+
     AbstractMock mock = AbstractMock.create(json.getString(URL),
                                             json.getInteger(HTTP_CODE, 200),
                                             json.getString(HTTP_METHOD, "GET"),
                                             json.getValue(RESPONSE),
-                                            absolutePath);
+                                            absolutePath,
+                                            headers);
     Route route = createRoute(mock);
     if (route != null) {
       mocksByFileName.put(absolutePath.toFile().getName(), mock);
@@ -246,6 +258,7 @@ public class RestVerticle extends AbstractVerticle {
       log.info("Request body: \n{}", body.isEmpty() ? "#empty#" : body);
 
       log.info("<<<<<<<<<<");
+
       HttpServerResponse res = ctx.response().setStatusCode(mock.getHttpCode());
       log.info("Response http code: {}", res.getStatusCode());
       mock.complete(res);
