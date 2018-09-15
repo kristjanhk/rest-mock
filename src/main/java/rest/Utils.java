@@ -3,6 +3,7 @@ package rest;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,9 +22,10 @@ class Utils {
 
   static JsonObject loadConfig() {
     try {
-      return new JsonObject(readToString(Utils.class.getResourceAsStream("/config.json")));
+      return new JsonObject(readToString(new FileInputStream("config/config.json")));
     } catch (IOException e) {
-      log.error("Failed to load config file: {}", "/config.json");
+      log.error("Failed to load config file: {}. The config file should be structured like following: {}", "config/config.json",
+              new JsonObject().put("dns_resolver_1", "192.168.41.1").put("dns_resolver_2", "8.8.8.8").encodePrettily());
     }
     return new JsonObject();
   }
@@ -39,6 +41,7 @@ class Utils {
 
   static String getJsonStructure() {
     return new JsonObject()
+        .put("headers", new JsonObject().put("header_key", "header_value").put("header_key2", "header_value2"))
         .put("url", "/example/url/.*/using/regex")
         .put("http_code", 200)
         .put("http_method", "GET")
